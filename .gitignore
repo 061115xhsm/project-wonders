@@ -1,0 +1,32 @@
+# 数据文件（含模拟/真实数据，不进Git）
+data/raw/
+data/processed/
+data/rag_index/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# 环境变量
+.env
+
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+
+# 海报PDF（太大且可重新生成）
+poster/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent缓存
+.agents/

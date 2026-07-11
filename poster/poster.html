@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: 297cm 420cm;
+    margin: 0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    width: 297cm;
+    height: 420cm;
+    font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #0a0a2e 0%, #0d1b3e 30%, #0a2a4a 60%, #0a0a2e 100%);
+    color: #ffffff;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* 装饰背景 */
+  .bg-grid {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: 
+      linear-gradient(rgba(0,206,209,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,206,209,0.03) 1px, transparent 1px);
+    background-size: 4cm 4cm;
+    z-index: 0;
+  }
+  
+  .bg-circle1 {
+    position: absolute;
+    width: 80cm; height: 80cm;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,206,209,0.08) 0%, transparent 70%);
+    top: -20cm; right: -20cm;
+    z-index: 0;
+  }
+  
+  .bg-circle2 {
+    position: absolute;
+    width: 60cm; height: 60cm;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,215,0,0.06) 0%, transparent 70%);
+    bottom: 10cm; left: -15cm;
+    z-index: 0;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    padding: 8cm 10cm;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 顶部赛道标签 */
+  .track-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #00CED1, #00B4D8);
+    color: #0a0a2e;
+    font-size: 3.2cm;
+    font-weight: 900;
+    padding: 1cm 3cm;
+    border-radius: 1cm;
+    letter-spacing: 0.3cm;
+    margin-bottom: 3cm;
+    align-self: flex-start;
+  }
+
+  /* 项目名称 */
+  .project-title {
+    font-size: 11cm;
+    font-weight: 900;
+    line-height: 1.2;
+    margin-bottom: 1.5cm;
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* 一句话介绍 */
+  .one-liner {
+    font-size: 4.5cm;
+    color: #00CED1;
+    font-weight: 700;
+    margin-bottom: 4cm;
+    line-height: 1.4;
+    max-width: 85%;
+  }
+
+  /* 核心能力区 */
+  .capabilities {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3cm;
+    margin-bottom: 5cm;
+  }
+
+  .cap-card {
+    background: rgba(255,255,255,0.04);
+    border: 2px solid rgba(0,206,209,0.2);
+    border-radius: 2cm;
+    padding: 3cm 3.5cm;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .cap-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 0.8cm; height: 100%;
+    background: linear-gradient(180deg, #00CED1, #FFD700);
+  }
+
+  .cap-icon {
+    font-size: 5cm;
+    margin-bottom: 1.5cm;
+  }
+
+  .cap-title {
+    font-size: 3.5cm;
+    font-weight: 800;
+    color: #FFD700;
+    margin-bottom: 1.2cm;
+  }
+
+  .cap-desc {
+    font-size: 2.5cm;
+    color: rgba(255,255,255,0.75);
+    line-height: 1.5;
+  }
+
+  /* AI核心引擎区 */
+  .ai-engine {
+    background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(0,206,209,0.08));
+    border: 3px solid rgba(255,215,0,0.3);
+    border-radius: 2.5cm;
+    padding: 4cm 5cm;
+    margin-bottom: 5cm;
+    text-align: center;
+  }
+
+  .ai-engine-title {
+    font-size: 4cm;
+    font-weight: 900;
+    color: #FFD700;
+    margin-bottom: 2cm;
+  }
+
+  .ai-tags {
+    display: flex;
+    justify-content: center;
+    gap: 2.5cm;
+    flex-wrap: wrap;
+  }
+
+  .ai-tag {
+    background: rgba(0,206,209,0.15);
+    border: 2px solid #00CED1;
+    border-radius: 1.5cm;
+    padding: 1.2cm 3cm;
+    font-size: 2.8cm;
+    font-weight: 700;
+    color: #00CED1;
+  }
+
+  .ai-tag.highlight {
+    background: rgba(255,215,0,0.15);
+    border-color: #FFD700;
+    color: #FFD700;
+  }
+
+  /* Demo区 */
+  .demo-section {
+    background: rgba(255,255,255,0.03);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 2cm;
+    padding: 3cm 4cm;
+    margin-bottom: 4cm;
+    display: flex;
+    align-items: center;
+    gap: 4cm;
+  }
+
+  .demo-qr {
+    width: 18cm;
+    height: 18cm;
+    background: #ffffff;
+    border-radius: 1.5cm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5cm;
+    color: #0a0a2e;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .demo-info {
+    flex: 1;
+  }
+
+  .demo-title {
+    font-size: 3.5cm;
+    font-weight: 800;
+    color: #FFD700;
+    margin-bottom: 1.5cm;
+  }
+
+  .demo-desc {
+    font-size: 2.5cm;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.5;
+  }
+
+  /* 底部 */
+  .footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-top: 3cm;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .team-info {
+    font-size: 2.8cm;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .team-name {
+    font-size: 3.5cm;
+    font-weight: 800;
+    color: #FFD700;
+    margin-bottom: 0.5cm;
+  }
+
+  .hackathon-name {
+    font-size: 2.5cm;
+    color: rgba(255,255,255,0.4);
+    text-align: right;
+  }
+
+  /* 流程图区 */
+  .flow-section {
+    margin-bottom: 5cm;
+  }
+  
+  .flow-title {
+    font-size: 3.5cm;
+    font-weight: 800;
+    color: #FFD700;
+    margin-bottom: 2.5cm;
+  }
+  
+  .flow-steps {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1cm;
+  }
+  
+  .flow-step {
+    text-align: center;
+    flex: 1;
+  }
+  
+  .flow-step-icon {
+    font-size: 4.5cm;
+    margin-bottom: 1cm;
+  }
+  
+  .flow-step-label {
+    font-size: 2.2cm;
+    font-weight: 700;
+    color: #00CED1;
+    margin-bottom: 0.5cm;
+  }
+  
+  .flow-step-desc {
+    font-size: 1.8cm;
+    color: rgba(255,255,255,0.6);
+  }
+  
+  .flow-arrow {
+    font-size: 3.5cm;
+    color: #FFD700;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-circle1"></div>
+  <div class="bg-circle2"></div>
+  
+  <div class="content">
+    <!-- 赛道标签 -->
+    <div class="track-badge">AI + 软件赛道</div>
+    
+    <!-- 项目名称 -->
+    <div class="project-title">万泰新天地<br>智能运营中台</div>
+    
+    <!-- 一句话介绍 -->
+    <div class="one-liner">AI Agent驱动的商业综合体智能运营决策系统<br>——让商场运营从"看报表"到"问AI"</div>
+    
+    <!-- 核心能力 -->
+    <div class="capabilities">
+      <div class="cap-card">
+        <div class="cap-icon">🤖</div>
+        <div class="cap-title">AI运营Agent</div>
+        <div class="cap-desc">自然语言交互，自动分析数据、归因异常、生成决策建议，替代传统报表解读</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">👥</div>
+        <div class="cap-title">RFM会员洞察</div>
+        <div class="cap-desc">K-Means智能分层，动态识别高价值/沉睡会员，AI生成个性化营销策略</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🏪</div>
+        <div class="cap-title">商铺智能评估</div>
+        <div class="cap-desc">多维度加权评分模型，自动发现经营盲区，AI诊断商铺问题并推荐优化方案</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">📊</div>
+        <div class="cap-title">客流时空分析</div>
+        <div class="cap-desc">7×24热力图+天气/节假日因子分析，AI预测客流趋势，提前调配运营资源</div>
+      </div>
+    </div>
+    
+    <!-- AI核心引擎 -->
+    <div class="ai-engine">
+      <div class="ai-engine-title">⚡ AI 原生能力引擎</div>
+      <div class="ai-tags">
+        <div class="ai-tag highlight">大模型 Agent</div>
+        <div class="ai-tag highlight">RAG 知识库</div>
+        <div class="ai-tag">AI 工作流</div>
+        <div class="ai-tag">多模态分析</div>
+      </div>
+    </div>
+    
+    <!-- 决策流程 -->
+    <div class="flow-section">
+      <div class="flow-title">🔄 运营决策闭环</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-step-icon">📡</div>
+          <div class="flow-step-label">数据采集</div>
+          <div class="flow-step-desc">客流/会员/商铺</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-step-icon">🧠</div>
+          <div class="flow-step-label">AI分析</div>
+          <div class="flow-step-desc">Agent归因诊断</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-step-icon">💡</div>
+          <div class="flow-step-label">智能决策</div>
+          <div class="flow-step-desc">策略自动生成</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-step-icon">🚀</div>
+          <div class="flow-step-label">执行反馈</div>
+          <div class="flow-step-desc">效果追踪优化</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Demo -->
+    <div class="demo-section">
+      <div class="demo-qr">扫码体验<br>Demo</div>
+      <div class="demo-info">
+        <div class="demo-title">🎮 在线Demo</div>
+        <div class="demo-desc">
+          对话式运营助手：输入"上周客流为什么下降"<br>
+          AI自动调取数据 → 归因分析 → 生成可执行建议<br>
+          扫码或访问 demo链接 体验完整系统
+        </div>
+      </div>
+    </div>
+    
+    <!-- 底部 -->
+    <div class="footer">
+      <div>
+        <div class="team-name">佛得首队</div>
+        <div class="team-info">万泰新天地 · 普宁国际商品城</div>
+      </div>
+      <div class="hackathon-name">百城千县黑客松 · 普宁落地专场<br>2026.07.11-12</div>
+    </div>
+  </div>
+</body>
+</html>
