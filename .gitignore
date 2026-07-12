@@ -30,3 +30,10 @@ Thumbs.db
 
 # Agent缓存
 .agents/
+
+# 文档生成产物
+docs/*.docx
+docs/*.pdf
+docs/*.tex
+docs/gen_*.py
+data/raw_2023_backup/

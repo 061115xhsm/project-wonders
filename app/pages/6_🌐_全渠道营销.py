@@ -16,13 +16,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from app.utils import load_csv
 from app.processor import clean_data
+from app.date_filter import filter_members, get_date_range
 from app.viz_theme import (
-    apply_theme, stat_card_html, kpi_grid_html, inject_global_css, current_palette,
+    apply_theme, chart_config, stat_card_html, kpi_grid_html, inject_global_css, mobile_notice_html, current_palette,
 )
 
 st.set_page_config(page_title="全渠道营销", layout="wide")
 inject_global_css()
 P = current_palette()
+from app.date_filter import render_date_filter as _rdf
+_rdf()  # 侧边栏时间段筛选器(每个页面都渲染,保证全页面可切换)
 
 
 @st.cache_data(ttl=3600)
@@ -32,9 +35,12 @@ def load_data():
 
 
 members = load_data()
+_dr_start, _dr_end = get_date_range()
+_dr_label = f"{_dr_start.date()} ~ {_dr_end.date()}"
 
 st.title("🌐 全渠道营销")
-st.caption("统一会员ID · 线上线下触点 · 全渠道协同 —— 打通营销割裂")
+st.markdown(mobile_notice_html(), unsafe_allow_html=True)
+st.caption(f"📅 时段内活跃会员:**{len(filter_members(members)):,}** 人({_dr_label}) · 统一会员ID · 线上线下触点全渠道协同")
 
 # ===== KPI 行 =====
 total = len(members)
@@ -49,16 +55,16 @@ multi_touch = len(members[members["visit_count"] >= 20])
 unified_pct = multi_touch / total * 100 if total else 0
 
 kpi = (
-    stat_card_html("统一会员ID", f"{total:,}", "贯通全触点", accent=P["cat_blue"])
+    stat_card_html("统一会员ID", f"{total:,}", "统一会员ID体系(设计中)", accent=P["cat_blue"])
     + stat_card_html("线上渠道会员", f"{int(online_n):,}", f"{online_n/total*100:.0f}% 占比", accent=P["cat_aqua"])
     + stat_card_html("线下渠道会员", f"{int(offline_n):,}", f"{offline_n/total*100:.0f}% 占比", accent=P["cat_orange"])
-    + stat_card_html("多触点活跃", f"{multi_touch:,}", f"到店≥20次(已打通)", delta_good=True, accent=P["cat_gold"])
+    + stat_card_html("多触点活跃", f"{multi_touch:,}", f"到店≥20次", delta_good=True, accent=P["cat_gold"])
 )
 st.markdown(kpi_grid_html(kpi, cols=4), unsafe_allow_html=True)
 
 # ===== 统一会员ID体系说明 =====
 st.subheader("🆔 统一会员ID体系")
-st.caption("一个会员ID贯通所有触点,解决线上线下会员不打通")
+st.caption("规划的统一ID体系,会员在任一触点行为归集到同一ID(设计中)")
 
 st.markdown(f'<div style="background:{P["surface"]};border:1px solid {P["border"]};'
             f'border-radius:10px;padding:14px 18px;margin:10px 0">'
@@ -73,7 +79,7 @@ st.markdown(f'<div style="background:{P["surface"]};border:1px solid {P["border"
             f'<span style="background:rgba(213,81,129,0.18);color:{P["cat_magenta"]};padding:6px 12px;border-radius:8px;font-size:0.85rem">租户系统</span>'
             f'</div></div>', unsafe_allow_html=True)
 
-st.caption("会员在任一触点注册/消费,统一ID关联所有行为数据,营销可跨触点协同(如线上领券→门店核销→积分回传)")
+st.caption("规划的统一ID体系(设计中):会员在任一触点注册/消费,行为归集到同一ID,营销可跨触点协同(如线上领券→门店核销→积分回传)")
 
 # ===== 线上线下触点矩阵 =====
 st.subheader("📍 线上线下触点矩阵")
@@ -132,7 +138,7 @@ fig = go.Figure(data=[go.Sankey(
 )
 fig.update_layout(margin=dict(l=8, r=16, t=16, b=8))
 apply_theme(fig, height=360, show_legend=False)
-st.plotly_chart(fig, width="stretch")
+st.plotly_chart(fig, config=chart_config(), width="stretch")
 
 # ===== 全渠道协同方案(会员旅程) =====
 st.subheader("🔄 全渠道协同方案")

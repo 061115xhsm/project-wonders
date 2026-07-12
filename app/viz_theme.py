@@ -198,6 +198,24 @@ def _hsl_to_rgb(h: float, s: float, l: float) -> str:
     return f"#{R:02x}{G:02x}{B:02x}"
 
 
+def chart_config() -> dict:
+    """Plotly 图表 Streamlit config:桌面端滚轮缩放,手机端禁用触摸缩放(防误触过度缩放)。
+    页面用法: st.plotly_chart(fig, config=chart_config(), width="stretch")"""
+    return {
+        "scrollZoom": False,         # 禁用滚轮/双指缩放(防手机误触过度缩放)
+        "displayModeBar": True,      # 显示工具栏(需缩放时用按钮)
+        "displaylogo": False,
+        "responsive": True,          # 响应式宽度(手机自适应)
+        "staticPlot": False,
+    }
+
+
+def mobile_notice_html() -> str:
+    """手机端顶部提示条:仅≤768px显示,提示主要适配电脑端。桌面端不显示。"""
+    return ('<div class="mobile-notice">💻 <strong>本系统主要适配电脑端</strong>'
+            '·手机端图表已禁用缩放防误触,建议用电脑访问以获得最佳体验。</div>')
+
+
 def heatmap_redblue_scale() -> list:
     """热力图专用:超平滑全色谱渐变(蓝→青→绿→黄→橙→红→粉),3000断点HSL插值。
     暗色模式:色相240→0(蓝→红→粉),饱和度0.85,明度0.25→0.75;
@@ -434,12 +452,13 @@ def hero_figure_html(label, value, subtitle=None, accent=None):
 
 
 def kpi_grid_html(cards_html, cols=4):
-    """把多个 stat_card_html 排成网格。cards_html 可为单卡 HTML 字符串或字符串列表。"""
+    """把多个 stat_card_html 排成网格。cards_html 可为单卡 HTML 字符串或字符串列表。
+    列数用 class(kpi-grid-N),CSS 媒体查询在手机端覆盖为 1-2 列。"""
     if isinstance(cards_html, (list, tuple)):
         cards = "".join(cards_html)
     else:
         cards = cards_html
-    return f'<div class="kpi-grid" style="grid-template-columns:repeat({cols},1fr)">{cards}</div>'
+    return f'<div class="kpi-grid kpi-grid-{cols}">{cards}</div>'
 
 
 # 全局 CSS(注入 main.py 一次,所有页面共享)
@@ -492,6 +511,9 @@ def build_global_css():
             gap: 12px;
             margin: 12px 0 20px 0;
         }}
+        .kpi-grid-4 {{ grid-template-columns: repeat(4, 1fr); }}
+        .kpi-grid-3 {{ grid-template-columns: repeat(3, 1fr); }}
+        .kpi-grid-2 {{ grid-template-columns: repeat(2, 1fr); }}
         .kpi-card {{
             background-color: {p['surface']};
             border: 1px solid {p['border']};
@@ -635,6 +657,84 @@ def build_global_css():
             border: 1px solid {p['border']};
         }}
         .shop-tag.anchor {{ border-color: {p['cat_gold']}; color: {p['cat_gold']}; }}
+
+        /* ===== 移动端适配 ===== */
+        /* viewport: 禁止双指缩放 + 双击缩放,防误触 */
+        @-webkit-viewport {{ width: device-width; user-zoom: fixed; zoom: 1; }}
+        @viewport {{ width: device-width; user-zoom: fixed; zoom: 1; }}
+
+        /* 全局:禁用文本长按选择(防误触弹出菜单)+ 禁用双击缩放 + 禁双指 */
+        body, .stApp {{
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
+            -webkit-text-size-adjust: 100% !important;
+            touch-action: pan-y !important;  /* 只允许纵向滚动,禁双指缩放/双击缩放 */
+            overscroll-behavior: none !important;
+        }}
+        /* 输入框/文本区域恢复选择(否则没法编辑) */
+        input, textarea, [contenteditable] {{
+            -webkit-user-select: text !important;
+            user-select: text !important;
+        }}
+
+        /* Plotly 图表:仅允许垂直滚动(pan-y),禁止双指缩放防误触 */
+        .js-plotly-plot, .js-plotly-plot .plotly, .js-plotly-plot .plotly .svg-container,
+        .js-plotly-plot .modebar {{
+            touch-action: pan-y !important;
+        }}
+        /* 隐藏 Plotly 工具条(手机端点了容易误触缩放/下载) */
+        .js-plotly-plot .modebar {{ display: none !important; }}
+        .plotly-notifier {{ display: none !important; }}
+
+        /* 按钮:增大点击热区,防误触 */
+        .stButton > button, button[kind="primary"] {{
+            min-height: 44px !important;
+            touch-action: manipulation !important;
+        }}
+
+        /* 手机端顶部提示条(仅≤768px显示) */
+        .mobile-notice {{
+            display: none;
+        }}
+        @media (max-width: 768px) {{
+            .mobile-notice {{
+                display: block !important;
+                background: {p['surface']};
+                border: 1px solid {p['cat_gold']};
+                border-left: 4px solid {p['cat_gold']};
+                border-radius: 8px;
+                padding: 10px 14px;
+                margin: 8px 0 16px 0;
+                font-size: 0.82rem;
+                color: {p['text_secondary']};
+                line-height: 1.5;
+            }}
+            .mobile-notice strong {{ color: {p['cat_gold']}; }}
+        }}
+
+        /* 手机端(≤768px):单列布局 + 放大可读性 */
+        @media (max-width: 768px) {{
+            .kpi-grid-4, .kpi-grid-3 {{ grid-template-columns: repeat(2, 1fr) !important; }}
+            .kpi-grid-2 {{ grid-template-columns: repeat(2, 1fr) !important; }}
+            .kpi-card {{ padding: 12px 14px; }}
+            .kpi-value {{ font-size: 1.4rem; }}
+            .kpi-label {{ font-size: 0.78rem; }}
+            .hero-card {{ padding: 16px 18px; }}
+            .hero-value {{ font-size: 2rem; }}
+            .roi-grid {{ grid-template-columns: repeat(2, 1fr) !important; }}
+            .strategy-item, .product-item, .insight-card, .copy-card {{ padding: 10px 12px; }}
+            /* 主内容区减少边距,手机屏更宽 */
+            .block-container {{ padding-top: 1rem !important; padding-bottom: 1rem !important; }}
+            /* 楼层商铺标签云手机端更紧凑 */
+            .shop-tag {{ font-size: 0.72rem; padding: 2px 8px; }}
+        }}
+
+        /* 小屏手机(≤480px):KPI 单列 */
+        @media (max-width: 480px) {{
+            .kpi-grid-4, .kpi-grid-3, .kpi-grid-2 {{ grid-template-columns: 1fr !important; }}
+            .roi-grid {{ grid-template-columns: repeat(2, 1fr) !important; }}
+        }}
     </style>
     """
 
@@ -643,9 +743,63 @@ def build_global_css():
 GLOBAL_CSS = build_global_css()
 
 def inject_global_css():
-    """在每个页面开头注入全局暗色主题 CSS(供子页面调用,确保多页面会话下样式一致)。"""
+    """在每个页面开头注入全局暗色主题 CSS(供子页面调用,确保多页面会话下样式一致)。
+
+    同时注入移动端防误触/防缩放 JS(__noZoomBound 守卫,重复调用安全)。
+    """
     import streamlit as st
     st.markdown(build_global_css(), unsafe_allow_html=True)
+    st.markdown(_ANTI_ZOOM_JS, unsafe_allow_html=True)
+
+
+# 移动端防误触JS:阻止双指缩放(gesturestart)+ 双击缩放 + 多指触摸
+# iOS Safari 的 CSS user-zoom:fixed 不完全可靠,需 JS 兜底;__noZoomBound 守卫防重复绑定
+_ANTI_ZOOM_JS = """
+<script>
+(function(){
+  if (window.__noZoomBound) return; window.__noZoomBound = true;
+  var LOCK = 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover';
+  // 持续锁定 viewport meta(Streamlit/浏览器可能重置)
+  function lockMeta(){
+    var meta = document.querySelector('meta[name="viewport"]');
+    if (meta && meta.getAttribute('content') !== LOCK) {
+      meta.setAttribute('content', LOCK);
+    }
+  }
+  lockMeta();
+  // 监听 meta 变化,被改回立即再锁
+  var mo = new MutationObserver(lockMeta);
+  if (document.querySelector('meta[name="viewport"]')) {
+    mo.observe(document.querySelector('meta[name="viewport"]'), {attributes:true, attributeFilter:['content']});
+  }
+  // DOM 加载后再次确保(覆盖 Streamlit 后注入的 meta)
+  document.addEventListener('DOMContentLoaded', lockMeta);
+  // 阻止双指缩放手势(iOS)
+  ['gesturestart','gesturechange','gestureend'].forEach(function(ev){
+    document.addEventListener(ev, function(e){ e.preventDefault(); }, {passive:false});
+  });
+  // 阻止双击缩放(350ms内二次touchend)
+  var lastTouchEnd = 0;
+  document.addEventListener('touchend', function(e){
+    var now = Date.now();
+    if (now - lastTouchEnd <= 350) { e.preventDefault(); }
+    lastTouchEnd = now;
+  }, {passive:false});
+  // 阻止双指 touchmove(安卓绕过 gesture 事件)
+  document.addEventListener('touchmove', function(e){
+    if (e.touches && e.touches.length > 1) { e.preventDefault(); }
+  }, {passive:false});
+  // 阻止 wheel+ctrl 缩放(桌面/部分浏览器)
+  document.addEventListener('wheel', function(e){
+    if (e.ctrlKey) { e.preventDefault(); }
+  }, {passive:false});
+  // 阻止键盘缩放快捷键
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey||e.metaKey) && ['=','-','+','0'].indexOf(e.key)>=0) { e.preventDefault(); }
+  }, {passive:false});
+})();
+</script>
+"""
 
 
 # ===== 品牌头部 =====
@@ -671,8 +825,8 @@ def ai_badge_html(source: str) -> str:
 
 
 # ===== AI 洞察条(首页日报) =====
-def insights_html(insights: list, title: str = "AI 运营日报") -> str:
-    """首页 AI 运营日报:多条洞察卡"""
+def insights_html(insights: list, title: str = "AI 运营日报", source: str = "llm") -> str:
+    """首页 AI 运营日报:多条洞察卡。source 透传 ai_badge_html 判定来源。"""
     if not insights:
         return ""
     items = []
@@ -681,7 +835,7 @@ def insights_html(insights: list, title: str = "AI 运营日报") -> str:
         items.append(f'<div class="insight-card"><div class="insight-icon">{icon}</div>'
                      f'<div class="insight-text">{txt}</div></div>')
     body = "".join(items)
-    badge = ai_badge_html("llm")
+    badge = ai_badge_html(source)
     return (f'<div class="plan-section">'
             f'<div class="plan-section-title">{title}{badge}</div>'
             f'<div class="insight-row">{body}</div></div>')

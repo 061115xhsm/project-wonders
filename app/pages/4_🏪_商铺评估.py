@@ -11,14 +11,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from app.utils import load_csv
 from app.models import calculate_shop_score
 from app.viz_theme import (
-    categorical_colors, seq_bluescale, apply_theme, themed_scatter,
+    categorical_colors, seq_bluescale, apply_theme, chart_config, themed_scatter,
     stat_card_html, kpi_grid_html, MARK_RING_WIDTH, MARK_LINE_WIDTH,
-    inject_global_css, current_palette,
+    inject_global_css, mobile_notice_html, current_palette,
 )
 
 st.set_page_config(page_title="商铺评估", layout="wide")
 inject_global_css()
 P = current_palette()
+from app.date_filter import render_date_filter as _rdf
+_rdf()  # 侧边栏时间段筛选器(每个页面都渲染,保证全页面可切换)
 
 
 @st.cache_data(ttl=3600)
@@ -30,6 +32,8 @@ def load_data():
 shops = load_data()
 
 st.title("🏪 商铺评估")
+st.markdown(mobile_notice_html(), unsafe_allow_html=True)
+st.caption("ℹ️ 商铺主数据为存量信息(合同/租金/坪效),不随时段筛选变化")
 
 # ===== KPI 行 =====
 top = shops.nsmallest(1, "rank").iloc[0]
@@ -119,7 +123,7 @@ with col1:
         ),
     )
     apply_theme(fig, height=400, show_legend=True)
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, config=chart_config(), width="stretch")
 
 # ===== 楼层平均评分(横条形 sequential 蓝,不用 color=数值)=====
 with col2:
@@ -142,7 +146,7 @@ with col2:
     fig2.update_layout(bargap=0.4, showlegend=False)
     fig2.update_xaxes(title_text="平均评分", range=[0, 100])
     apply_theme(fig2, height=400)
-    st.plotly_chart(fig2, width="stretch")
+    st.plotly_chart(fig2, config=chart_config(), width="stretch")
 
 # ===== 坪效散点(marker≥8px + 2px surface ring,业态固定分类色)=====
 st.subheader("📈 坪效分析(面积 vs 销售额)")
@@ -156,4 +160,4 @@ fig3 = themed_scatter(
 )
 fig3.update_xaxes(title_text="面积(㎡)")
 fig3.update_yaxes(title_text="月销售额")
-st.plotly_chart(fig3, width="stretch")
+st.plotly_chart(fig3, config=chart_config(), width="stretch")

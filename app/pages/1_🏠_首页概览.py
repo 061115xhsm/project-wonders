@@ -9,9 +9,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from app.utils import load_csv
 from app.processor import clean_data, mask_sensitive_data
 from app.models import RFMModel, calculate_shop_score
+from app.date_filter import filter_traffic, get_date_range
 from app.viz_theme import (
     themed_line, stat_card_html, kpi_grid_html, hero_figure_html,
-    segment_colors, insights_html, inject_global_css, current_palette,
+    segment_colors, insights_html, inject_global_css, mobile_notice_html, chart_config, current_palette,
 )
 from app.agent import generate_daily_digest, chat_operation
 from app.llm_client import is_llm_ready
@@ -19,6 +20,8 @@ from app.llm_client import is_llm_ready
 st.set_page_config(page_title="首页概览", layout="wide")
 inject_global_css()
 P = current_palette()
+from app.date_filter import render_date_filter as _rdf
+_rdf()  # 侧边栏时间段筛选器(每个页面都渲染,保证全页面可切换)
 
 
 @st.cache_data(ttl=3600)
@@ -37,14 +40,21 @@ def load_all_data():
 
 traffic, members, shops_scored = load_all_data()
 
+# 应用全局日期筛选(客流按选定时间段;会员RFM分群仍基于全量,保持稳定)
+traffic_f = filter_traffic(traffic)
+_dr_start, _dr_end = get_date_range()
+_dr_label = f"{_dr_start.date()} ~ {_dr_end.date()}"
+
 st.title("🏠 首页概览")
+st.markdown(mobile_notice_html(), unsafe_allow_html=True)
+st.caption(f"📅 当前分析时段:**{_dr_label}**(左侧侧边栏可切换)")
 
 # ===== Hero 区:年度总营收 =====
 total_revenue = shops_scored["monthly_sales"].sum() * 12
 vip_count = len(members[members["segment"] == "高价值"])
 st.markdown(
     hero_figure_html(
-        "年度总营收(估)", f"¥{total_revenue/1e6:,.1f}M",
+        "时段营收(估)", f"¥{total_revenue/1e6:,.1f}M",
         subtitle=f"基于 {shops_scored['name'].nunique()} 个真实品牌 · 高价值会员 {vip_count:,} 人 · 数据已脱敏",
         accent=P["cat_gold"],
     ),
@@ -52,12 +62,12 @@ st.markdown(
 )
 
 # ===== KPI 行 =====
-today_traffic = traffic["visitor_count"].sum()
+today_traffic = traffic_f["visitor_count"].sum()
 total_members = len(members)
 vip_ratio = vip_count / total_members * 100 if total_members else 0
 
 kpi = (
-    stat_card_html("年度总客流", f"{today_traffic/1e4:,.1f}万", "↑ 完整年度",
+    stat_card_html("时段客流", f"{today_traffic/1e4:,.2f}万", f"({_dr_label})",
                    delta_good=True, accent=P["cat_blue"])
     + stat_card_html("会员总数", f"{total_members:,}",
                      f"高价值 {vip_count:,} 人", delta_good=True,
@@ -94,17 +104,19 @@ with st.spinner("AI 运营分析师生成日报中..." if llm_ok else None):
              "category_count": cats, "top_peak": peak, "holiday_boost": hol, "rain_drop_pct": rain},
             use_llm=ok,
         )
-    insights = _digest(
+    digest_result = _digest(
         overview["total_traffic"], overview["total_revenue"], overview["total_members"],
         overview["vip_count"], overview["vip_ratio"], overview["shop_count"],
         overview["category_count"], overview["top_peak"], overview["holiday_boost"],
         overview["rain_drop_pct"], llm_ok,
     )
-st.markdown(insights_html(insights), unsafe_allow_html=True)
+    insights = digest_result.get("insights", []) if isinstance(digest_result, dict) else digest_result
+    digest_source = digest_result.get("_source", "llm" if llm_ok else "fallback_rule") if isinstance(digest_result, dict) else ("llm" if llm_ok else "fallback_rule")
+    st.markdown(insights_html(insights, source=digest_source), unsafe_allow_html=True)
 
-# ===== 近 30 天客流趋势 =====
-st.subheader("📈 近 30 天客流趋势")
-recent = traffic[traffic["date"] >= "2023-12-01"].copy()
+# ===== 时段客流趋势 =====
+st.subheader(f"📈 客流趋势({_dr_label})")
+recent = traffic_f.copy()
 recent["date"] = pd.to_datetime(recent["date"])
 daily = recent.groupby("date")["visitor_count"].sum().reset_index()
 fig = themed_line(daily["date"], daily["visitor_count"],
@@ -118,7 +130,7 @@ fig.add_annotation(
     font=dict(color=P["text_primary"], size=11),
 )
 fig.update_yaxes(title_text="客流")
-st.plotly_chart(fig, width="stretch")
+st.plotly_chart(fig, config=chart_config(), width="stretch")
 
 # ===== Top 5 商铺 =====
 st.subheader("🏆 Top 5 商铺")
@@ -133,7 +145,7 @@ st.dataframe(
     width="stretch", hide_index=False,
 )
 
-st.caption(f"数据来源:真实商户({shops_scored['name'].nunique()} 品牌)· 2023 全年模拟运营 · 评分 = 0.4×销售 + 0.3×客流 + 0.2×租售比 + 0.1×转化率")
+st.caption(f"数据来源:真实商户({shops_scored['name'].nunique()} 品牌)· 模拟运营数据 · 评分 = 0.4×销售 + 0.3×客流 + 0.2×租售比 + 0.1×转化率")
 
 # ===== AI 运营对话(多轮)=====
 st.markdown("---")
@@ -153,8 +165,9 @@ def _send_question(q: str):
     st.session_state["chat_history"].append({"role": "user", "content": q})
     with st.spinner("AI 思考中..." if is_llm_ready() else None):
         history = st.session_state["chat_history"][:-1]
-        answer = chat_operation(q, history, use_llm=is_llm_ready())
-    source = "AI 生成" if is_llm_ready() else "规则兜底"
+        result = chat_operation(q, history, use_llm=is_llm_ready())
+    answer = result.get("text", "") if isinstance(result, dict) else result
+    source = "AI 生成" if (isinstance(result, dict) and "llm" in result.get("_source", "")) else "规则兜底"
     st.session_state["chat_history"].append({"role": "assistant", "content": answer, "source": source})
 
 

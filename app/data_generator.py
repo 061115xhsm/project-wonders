@@ -14,14 +14,14 @@ from app.shops_data import ALL_SHOPS, SHOPS_BY_FLOOR, unique_brand_count
 fake = Faker('zh_CN')
 np.random.seed(42)
 
-# 2023年中国主要节假日
-HOLIDAYS_2023 = set()
-for d in pd.date_range("2023-01-01", "2023-01-03"): HOLIDAYS_2023.add(d.date())  # 元旦
-for d in pd.date_range("2023-01-21", "2023-01-27"): HOLIDAYS_2023.add(d.date())  # 春节
-HOLIDAYS_2023.add(pd.Timestamp("2023-04-05").date())  # 清明
-for d in pd.date_range("2023-04-29", "2023-05-03"): HOLIDAYS_2023.add(d.date())  # 五一
-for d in pd.date_range("2023-06-22", "2023-06-24"): HOLIDAYS_2023.add(d.date())  # 端午
-for d in pd.date_range("2023-09-29", "2023-10-06"): HOLIDAYS_2023.add(d.date())  # 中秋+国庆
+# 中国法定节假日(覆盖数据范围 2025-07-12 ~ 2026-07-12)
+HOLIDAYS_2023 = set()  # 保留变量名兼容,实际为 HOLIDAYS
+for d in pd.date_range("2025-10-01", "2025-10-08"): HOLIDAYS_2023.add(d.date())  # 2025 国庆+中秋
+for d in pd.date_range("2026-01-01", "2026-01-03"): HOLIDAYS_2023.add(d.date())  # 2026 元旦
+for d in pd.date_range("2026-02-17", "2026-02-23"): HOLIDAYS_2023.add(d.date())  # 2026 春节
+HOLIDAYS_2023.add(pd.Timestamp("2026-04-06").date())  # 2026 清明
+for d in pd.date_range("2026-05-01", "2026-05-05"): HOLIDAYS_2023.add(d.date())  # 2026 劳动节
+for d in pd.date_range("2026-06-19", "2026-06-21"): HOLIDAYS_2023.add(d.date())  # 2026 端午
 
 ZONES = ["A区(主中庭)", "B区(东翼)", "C区(西翼)", "D区(南门)", "E区(北门)"]
 
@@ -136,13 +136,14 @@ def generate_members(n=MEMBER_COUNT) -> pd.DataFrame:
         gender = np.random.choice(["男", "女"], p=[0.55, 0.45])
         age = int(np.clip(np.random.normal(32, 8), 18, 65))
 
-        # 注册日期：锚定 2021-2023(高等级更早注册)
+        # 注册日期：高等级更早注册(往前推1-2年),锚定 DATA_START 之前
+        _ds = pd.Timestamp(DATA_START)
         if level in ["黑金", "金卡"]:
-            reg_date = fake.date_between(start_date=datetime(2021, 1, 1), end_date=datetime(2022, 6, 30))
+            reg_date = fake.date_between(start_date=_ds - pd.DateOffset(years=2), end_date=_ds - pd.DateOffset(months=6))
         elif level == "银卡":
-            reg_date = fake.date_between(start_date=datetime(2021, 6, 1), end_date=datetime(2023, 3, 31))
+            reg_date = fake.date_between(start_date=_ds - pd.DateOffset(years=1, months=6), end_date=_ds + pd.DateOffset(months=3))
         else:
-            reg_date = fake.date_between(start_date=datetime(2021, 1, 1), end_date=datetime(2023, 12, 31))
+            reg_date = fake.date_between(start_date=_ds - pd.DateOffset(years=1), end_date=pd.Timestamp(DATA_END))
 
         # 到店次数
         visit_ranges = {"普通": (5, 30), "银卡": (20, 60), "金卡": (40, 120), "黑金": (80, 200)}
@@ -154,24 +155,25 @@ def generate_members(n=MEMBER_COUNT) -> pd.DataFrame:
         total_spent = round(avg_spent * visit_count * np.random.uniform(0.6, 1.4), 2)
         avg_spent = round(total_spent / visit_count, 2)
 
-        # 最近到店(锚定2023年内,基准2023-12-31)
+        # 最近到店(锚定数据末尾,基准=DATA_END=今天)
         # 高等级近期到店;部分会员长期未到店(产生流失风险数据)
+        _de = pd.Timestamp(DATA_END)
         if level in ["黑金", "金卡"]:
             # 20% 高价值长期未到店(>30天 = 流失风险)
             if np.random.random() < 0.20:
-                last_visit = fake.date_between(start_date=datetime(2023, 1, 1), end_date=datetime(2023, 11, 15))
+                last_visit = fake.date_between(start_date=_de - pd.DateOffset(months=6), end_date=_de - pd.DateOffset(months=2))
             else:
-                last_visit = fake.date_between(start_date=datetime(2023, 12, 1), end_date=datetime(2023, 12, 31))
+                last_visit = fake.date_between(start_date=_de - pd.DateOffset(days=30), end_date=_de)
         elif level == "银卡":
             if np.random.random() < 0.15:
-                last_visit = fake.date_between(start_date=datetime(2023, 1, 1), end_date=datetime(2023, 10, 31))
+                last_visit = fake.date_between(start_date=_de - pd.DateOffset(months=6), end_date=_de - pd.DateOffset(months=2))
             else:
-                last_visit = fake.date_between(start_date=datetime(2023, 11, 1), end_date=datetime(2023, 12, 31))
+                last_visit = fake.date_between(start_date=_de - pd.DateOffset(months=2), end_date=_de)
         else:
             if np.random.random() < 0.10:
-                last_visit = fake.date_between(start_date=datetime(2023, 1, 1), end_date=datetime(2023, 9, 30))
+                last_visit = fake.date_between(start_date=_de - pd.DateOffset(months=6), end_date=_de - pd.DateOffset(months=3))
             else:
-                last_visit = fake.date_between(start_date=datetime(2023, 10, 1), end_date=datetime(2023, 12, 31))
+                last_visit = fake.date_between(start_date=_de - pd.DateOffset(months=3), end_date=_de)
 
         # 偏好品类
         if level in ["黑金", "金卡"]:
@@ -269,20 +271,23 @@ def generate_shops(n=None) -> pd.DataFrame:
             conversion = round(np.random.uniform(0.30, 0.45), 4)
 
         # 合同字段(支撑痛点⑤:租户/合同/收租管理)
-        contract_start = fake.date_between(start_date="-3y", end_date="-1y")
+        # 锚定到 2024-2026 附近,使合同到期日跨 2026-07-11(今天)前后分布:
+        # 既有过期(真逾期/已续约),也有临期和未到期。
+        contract_start = fake.date_between(start_date="-3y", end_date="-6m")
         contract_years = int(np.random.choice([1, 2, 3], p=[0.3, 0.5, 0.2]))
         contract_end = pd.Timestamp(contract_start) + pd.DateOffset(years=contract_years)
-        # 距今天数:正数=未来到期,负数=已逾期
-        days_to_end = (pd.Timestamp("2026-07-11") - contract_end).days
-        # 收租状态:已收/待收/逾期 —— 已到期合同大部分已续约,仅小部分逾期
+        # 距今天数:正数=已过期(到期日在过去),负数=未到期(到期日在未来)
+        days_to_end = (pd.Timestamp(DATA_TODAY) - contract_end).days
+        # 收租状态:已收/待收/逾期 —— 基于真实 days_to_end 符号
         if days_to_end > 60:
-            rent_status = np.random.choice(["已收", "待收"], p=[0.80, 0.20])
-        elif days_to_end > 0:
-            # 60天内到期:部分待收续约
+            # 已过期超过 60 天:大部分已续约收讫,约 20% 逾期未收
+            rent_status = np.random.choice(["已收", "逾期"], p=[0.80, 0.20])
+        elif days_to_end >= 0:
+            # 已过期 0-60 天(临期):部分待收续约
             rent_status = np.random.choice(["已收", "待收"], p=[0.55, 0.45])
         else:
-            # 已到期:大部分已续约收讫,约 20% 逾期未收
-            rent_status = np.random.choice(["已收", "逾期"], p=[0.80, 0.20])
+            # 未到期(未来):全部已收
+            rent_status = "已收"
         # 数据采集完整度(支撑痛点④:0~1,主力店高,小户偏低)
         collection_rate = round(np.random.uniform(0.88, 0.99) if s.is_anchor else np.random.uniform(0.55, 0.92), 3)
 
@@ -355,7 +360,7 @@ def generate_consultations(n=8000) -> pd.DataFrame:
             content = content.format(brand)
 
         # 时间(全年分布,周末/节假日偏多)
-        date = fake.date_between(start_date=datetime(2023, 1, 1), end_date=datetime(2023, 12, 31))
+        date = fake.date_between(start_date=pd.Timestamp(DATA_START), end_date=pd.Timestamp(DATA_END))
         # 工作时间咨询为主
         hour = int(np.clip(np.random.normal(15, 5), 9, 21))
 
@@ -388,6 +393,9 @@ def generate_consultations(n=8000) -> pd.DataFrame:
     save_csv(df, "consultations_2023.csv", "raw")
     print(f"咨询记录已生成: {len(df)} 行")
     return df
+
+
+def validate_data():
     """数据质量自检"""
     print("=" * 50)
     print("数据质量验证")

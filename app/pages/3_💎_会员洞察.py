@@ -11,14 +11,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from app.utils import load_csv
 from app.processor import clean_data, mask_sensitive_data
 from app.models import RFMModel
+from app.date_filter import filter_members, get_date_range
 from app.viz_theme import (
-    apply_theme, segment_colors, SEGMENT_ORDER, level_colors,
-    stat_card_html, kpi_grid_html, MARK_LINE_WIDTH, MARK_GAP, inject_global_css, current_palette,
+    apply_theme, chart_config, segment_colors, SEGMENT_ORDER, level_colors,
+    stat_card_html, kpi_grid_html, MARK_LINE_WIDTH, MARK_GAP, inject_global_css, mobile_notice_html, current_palette,
 )
 
 st.set_page_config(page_title="会员洞察", layout="wide")
 inject_global_css()
 P = current_palette()
+from app.date_filter import render_date_filter as _rdf
+_rdf()  # 侧边栏时间段筛选器(每个页面都渲染,保证全页面可切换)
 
 
 @st.cache_data(ttl=3600)
@@ -33,8 +36,14 @@ def load_data():
 
 
 members = load_data()
+# 时段内活跃会员(last_visit_date 落在选定范围) —— 用于"近期活跃"统计
+members_active = filter_members(members)
+_dr_start, _dr_end = get_date_range()
+_dr_label = f"{_dr_start.date()} ~ {_dr_end.date()}"
 
 st.title("💎 会员洞察")
+st.markdown(mobile_notice_html(), unsafe_allow_html=True)
+st.caption(f"📅 时段内活跃会员:**{len(members_active):,}** 人({_dr_label}) · 下方 RFM 分群基于全量会员存量结构")
 
 # ===== KPI 行 =====
 total = len(members)
@@ -42,7 +51,7 @@ vip = len(members[members["segment"] == "高价值"])
 sleep = len(members[members["segment"] == "沉睡"])
 avg_spend = members["total_spent"].mean()
 kpi = (
-    stat_card_html("会员总数", f"{total:,}", "2023 全年", accent=P["cat_blue"])
+    stat_card_html("会员总数", f"{total:,}", f"时段活跃 {len(members_active):,}", accent=P["cat_blue"])
     + stat_card_html("高价值会员", f"{vip:,}", f"{vip/total*100:.1f}% 占比",
                      accent=P["cat_gold"])
     + stat_card_html("沉睡会员", f"{sleep:,}", f"{sleep/total*100:.1f}% 待激活",
@@ -71,7 +80,7 @@ with col1:
     fig1.update_layout(bargap=0.4, showlegend=False)
     fig1.update_xaxes(title_text="人数")
     apply_theme(fig1, height=380)
-    st.plotly_chart(fig1, width="stretch")
+    st.plotly_chart(fig1, config=chart_config(), width="stretch")
 
 # ===== RFM 分层(固定色,颜色跟随实体)=====
 with col2:
@@ -90,7 +99,7 @@ with col2:
     fig2.update_layout(bargap=0.4, showlegend=False)
     fig2.update_yaxes(title_text="人数")
     apply_theme(fig2, height=380)
-    st.plotly_chart(fig2, width="stretch")
+    st.plotly_chart(fig2, config=chart_config(), width="stretch")
 
 # ===== 年龄分布(按 segment 堆叠,2px surface gap)=====
 st.subheader("👤 会员年龄分布(按分层堆叠)")
@@ -104,7 +113,7 @@ fig3.update_layout(bargap=0.1)
 apply_theme(fig3, height=340, show_legend=True)
 fig3.update_xaxes(title_text="年龄")
 fig3.update_yaxes(title_text="人数")
-st.plotly_chart(fig3, width="stretch")
+st.plotly_chart(fig3, config=chart_config(), width="stretch")
 
 # ===== 各群体消费对比(表格条带)=====
 st.subheader("💰 各群体消费对比")
@@ -123,7 +132,8 @@ st.subheader("🚨 流失风险预警")
 st.caption("高价值/金卡/黑金会员中,30天以上未到店 = 流失风险,需主动挽回")
 
 members["last_visit_date"] = pd.to_datetime(members["last_visit_date"], errors="coerce")
-TODAY = pd.Timestamp("2023-12-31")
+from app.config import DATA_TODAY
+TODAY = pd.Timestamp(DATA_TODAY)
 members["days_since_visit"] = (TODAY - members["last_visit_date"]).dt.days
 
 # 高价值且长期未到店

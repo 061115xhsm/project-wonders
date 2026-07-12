@@ -10,20 +10,49 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.config import MALL_NAME, MALL_CITY
+from app.config import MALL_NAME, MALL_CITY, DATA_END, DATA_TODAY
 from app.viz_theme import build_global_css, current_palette, brand_header_html
 from app.llm_client import is_llm_ready
 
-# 页面配置
+# 页面配置(layout=wide 在手机端 Streamlit 会自动转单列;sidebar 手机默认收起)
 st.set_page_config(
     page_title=f"{MALL_NAME}智能运营中台",
     page_icon="🏪",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",  # 手机端默认收起,桌面端展开
 )
 
 # 注入全局 CSS(按当前主题动态生成,明暗都正确)
 st.markdown(build_global_css(), unsafe_allow_html=True)
+
+# 移动端防误触JS:阻止双指缩放(gesturestart)+ 双击缩放 + 多指触摸
+# iOS Safari 的 CSS user-zoom:fixed 不完全可靠,需 JS 兜底
+_anti_zoom_js = """
+<script>
+(function(){
+  if (window.__noZoomBound) return; window.__noZoomBound = true;
+  // 阻止双指缩放手势(iOS)
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, {passive:false});
+  document.addEventListener('gesturechange', function(e){ e.preventDefault(); }, {passive:false});
+  document.addEventListener('gestureend', function(e){ e.preventDefault(); }, {passive:false});
+  // 阻止双击缩放:最后一次 touchend 后 300ms 内的再次 touchend 视为双击
+  var lastTouchEnd = 0;
+  document.addEventListener('touchend', function(e){
+    var now = Date.now();
+    if (now - lastTouchEnd <= 350) { e.preventDefault(); }
+    lastTouchEnd = now;
+  }, {passive:false});
+  // 阻止双指 touchmove(安卓部分浏览器绕过 gesture 事件)
+  document.addEventListener('touchmove', function(e){
+    if (e.touches && e.touches.length > 1) { e.preventDefault(); }
+  }, {passive:false});
+  // 强制 viewport meta 禁用缩放(覆盖 Streamlit 默认)
+  var meta = document.querySelector('meta[name="viewport"]');
+  if (meta) { meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover'); }
+})();
+</script>
+"""
+st.markdown(_anti_zoom_js, unsafe_allow_html=True)
 
 # ===== 侧边栏 =====
 with st.sidebar:
@@ -60,14 +89,10 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # 全局筛选器
-    st.markdown(f'<div style="color:{P["text_secondary"]};font-size:0.9rem;font-weight:600;margin-bottom:8px">📊 全局筛选</div>',
-                unsafe_allow_html=True)
-    date_range = st.date_input(
-        "日期范围",
-        value=(pd.Timestamp("2023-01-01").date(), pd.Timestamp("2023-12-31").date()),
-        key="global_date_range",
-    )
+    # 全局筛选器(时间段,各页面侧边栏也会渲染同一组件)
+    from app.date_filter import render_date_filter
+    render_date_filter()
+
     floor_filter = st.multiselect(
         "楼层",
         options=[1, 2, 3, 4, 5],

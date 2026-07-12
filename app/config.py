@@ -9,9 +9,11 @@ OPEN_HOUR = 10
 CLOSE_HOUR = 22
 
 # ===== 模拟数据参数 =====
-DATA_YEAR = 2023
-DATA_START = "2023-01-01"
-DATA_END = "2023-12-31"
+# 数据覆盖最近1年,截至"今天"(2026-07-12),使"今天/本周/本月"有数据可分析
+DATA_TODAY = "2026-07-12"
+DATA_YEAR = 2026
+DATA_START = "2025-07-12"
+DATA_END = "2026-07-12"
 MEMBER_COUNT = 5000
 SHOP_COUNT = 60  # 去重品牌数(跨层主力店沃尔玛/中影/魅力金座各计1);实际商铺记录65条(含跨层)
 TRAFFIC_INTERVAL_MINUTES = 15  # 客流采样粒度（分钟）
@@ -47,7 +49,7 @@ FLOOR_TRAFFIC_WEIGHT = {1: 1.0, 2: 0.75, 3: 0.55, 4: 0.35, 5: 0.20}
 
 # ===== 模型参数 =====
 RFM_K_CLUSTERS = 4
-RFM_REFERENCE_DATE = "2023-12-31"
+RFM_REFERENCE_DATE = DATA_TODAY  # 会员R值参考日=今天,与数据范围对齐
 
 # 商铺评分权重
 SHOP_WEIGHTS = {

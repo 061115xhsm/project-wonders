@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from app.utils import load_csv
 from app.viz_theme import (
-    apply_theme, stat_card_html, kpi_grid_html, inject_global_css, current_palette,
+    apply_theme, chart_config, stat_card_html, kpi_grid_html, inject_global_css, mobile_notice_html, current_palette,
 )
 from app.agent import generate_collection_advice
 from app.llm_client import is_llm_ready
@@ -24,6 +24,8 @@ from app.llm_client import is_llm_ready
 st.set_page_config(page_title="数据采集", layout="wide")
 inject_global_css()
 P = current_palette()
+from app.date_filter import render_date_filter as _rdf
+_rdf()  # 侧边栏时间段筛选器(每个页面都渲染,保证全页面可切换)
 
 
 @st.cache_data(ttl=3600)
@@ -34,7 +36,8 @@ def load_data():
 shops = load_data()
 
 st.title("📡 数据采集")
-st.caption("采集覆盖率 · 缺失预警 · 数据资产盘点 · AI 采集建议 —— 补齐商铺经营数据盲区")
+st.markdown(mobile_notice_html(), unsafe_allow_html=True)
+st.caption("ℹ️ 商铺采集现状为存量盘点,不随时段筛选变化 · 缺失预警 · 数据资产盘点 · AI 采集建议")
 
 # ===== KPI 行 =====
 total = len(shops)
@@ -68,7 +71,7 @@ fig.update_layout(bargap=0.1)
 fig.update_xaxes(title_text="采集率", range=[0, 1], tickformat=".0%")
 fig.update_yaxes(title_text="商铺数")
 apply_theme(fig, height=320)
-st.plotly_chart(fig, width="stretch")
+st.plotly_chart(fig, config=chart_config(), width="stretch")
 
 # ===== 楼层 vs 业态 采集率 =====
 col1, col2 = st.columns(2)
@@ -89,7 +92,7 @@ with col1:
     fig1.update_layout(bargap=0.4, showlegend=False)
     fig1.update_yaxes(title_text="采集率%", range=[0, 100])
     apply_theme(fig1, height=320)
-    st.plotly_chart(fig1, width="stretch")
+    st.plotly_chart(fig1, config=chart_config(), width="stretch")
 
 with col2:
     st.subheader("🏷️ 各业态采集率")
@@ -107,7 +110,7 @@ with col2:
     fig2.update_layout(bargap=0.4, showlegend=False)
     fig2.update_xaxes(title_text="采集率%", range=[0, 100])
     apply_theme(fig2, height=320)
-    st.plotly_chart(fig2, width="stretch")
+    st.plotly_chart(fig2, config=chart_config(), width="stretch")
 
 # ===== 缺失预警表 =====
 st.subheader("⚠️ 采集缺失预警")
@@ -135,10 +138,10 @@ else:
 st.subheader("🗂️ 数据资产盘点")
 st.caption("各类数据采集状态与接入方式")
 asset_data = [
-    {"数据类型": "客流数据", "采集方式": "IoT客流计数器+入口热成像", "覆盖": f"{total}/{total} 商铺", "状态": "✅ 全覆盖", "更新": "小时级"},
+    {"数据类型": "客流数据", "采集方式": "采集方式(规划):IoT客流计数器", "覆盖": f"{total}/{total} 商铺", "状态": "模拟/待对接", "更新": "小时级(规划)"},
     {"数据类型": "销售数据", "采集方式": "POS系统对接/月度申报", "覆盖": f"{int(avg_rate*total)}/{total} 商铺", "状态": f"覆盖率{avg_rate*100:.0f}%", "更新": "日级"},
-    {"数据类型": "会员数据", "采集方式": "全渠道统一ID(小程序+门店+支付)", "覆盖": "5000 会员", "状态": "✅ 全覆盖", "更新": "实时"},
-    {"数据类型": "合同数据", "采集方式": "租户管理系统录入", "覆盖": f"{total}/{total} 商铺", "状态": "✅ 全覆盖", "更新": "月级"},
+    {"数据类型": "会员数据", "采集方式": "全渠道统一ID(小程序+门店+支付)", "覆盖": "5000 会员", "状态": "模拟/待对接", "更新": "实时"},
+    {"数据类型": "合同数据", "采集方式": "租户管理系统录入", "覆盖": f"{total}/{total} 商铺", "状态": "模拟/待对接", "更新": "月级"},
     {"数据类型": "转化数据", "采集方式": "客流×会员匹配计算", "覆盖": f"{int(avg_rate*total)}/{total} 商铺", "状态": f"覆盖率{avg_rate*100:.0f}%", "更新": "日级"},
 ]
 st.dataframe(pd.DataFrame(asset_data), width="stretch", hide_index=True)
@@ -156,8 +159,9 @@ if len(low):
 
     if st.button("生成采集建议", type="primary", key="gen_collect"):
         with st.spinner("AI 生成数据采集建议中..." if is_llm_ready() else None):
-            advice = generate_collection_advice(low_shops_for_ai, use_llm=is_llm_ready())
-        source = "AI 生成" if is_llm_ready() else "规则兜底"
+            advice_result = generate_collection_advice(low_shops_for_ai, use_llm=is_llm_ready())
+        advice = advice_result.get("advice", []) if isinstance(advice_result, dict) else advice_result
+        source = "AI 生成" if (isinstance(advice_result, dict) and "llm" in advice_result.get("_source", "")) else "规则兜底"
         advice_html = "".join(
             f'<div style="background:{P["surface"]};border:1px solid {P["border"]};'
             f'border-left:3px solid {P["cat_aqua"]};border-radius:8px;padding:10px 14px;margin:8px 0">'

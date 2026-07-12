@@ -88,28 +88,35 @@ def chat(messages: list, temperature: float = 0.7, max_tokens: Optional[int] = N
     for label, base_url, api_key, model in _CANDIDATES:
         if not _available(label):
             continue
-        try:
-            client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout or LLM_TIMEOUT)
-            kwargs = dict(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens or LLM_MAX_TOKENS,
-            )
-            if json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
-            resp = client.chat.completions.create(**kwargs)
-            _mark_ok(label)
-            return {
-                "content": resp.choices[0].message.content or "",
-                "model": f"{label}/{resp.model}",
-                "usage": resp.usage.model_dump() if resp.usage else {},
-            }
-        except Exception as e:
-            last_err = e
-            _mark_fail(label)
-            logger.warning(f"模型 {label}({model}) 调用失败: {type(e).__name__} {str(e)[:200]}")
-            continue
+        for attempt_no_json in (False, True):
+            try:
+                client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout or LLM_TIMEOUT)
+                kwargs = dict(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens or LLM_MAX_TOKENS,
+                )
+                # 讯飞 auto 等模型可能不支持 response_format;
+                # 首次用 json_mode 调用,若报错则去掉 response_format 重试(宽松解析兜底)
+                if json_mode and not attempt_no_json:
+                    kwargs["response_format"] = {"type": "json_object"}
+                resp = client.chat.completions.create(**kwargs)
+                _mark_ok(label)
+                return {
+                    "content": resp.choices[0].message.content or "",
+                    "model": f"{label}/{resp.model}",
+                    "usage": resp.usage.model_dump() if resp.usage else {},
+                }
+            except Exception as e:
+                last_err = e
+                # 仅当本次是 json_mode 且尚未重试时,尝试去掉 response_format 再调一次
+                if json_mode and not attempt_no_json:
+                    logger.info(f"模型 {label}({model}) json_mode 调用失败,去掉 response_format 重试: {type(e).__name__}")
+                    continue
+                _mark_fail(label)
+                logger.warning(f"模型 {label}({model}) 调用失败: {type(e).__name__} {str(e)[:200]}")
+                break
 
     raise RuntimeError(f"所有大模型均不可用,最后错误: {last_err}")
 
