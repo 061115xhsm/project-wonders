@@ -1,0 +1,517 @@
+"""生成万泰技术文档 docx —— 内容与 .tex 版本一致,带样式(标题/表格/代码/配色)"""
+from docx import Document
+from docx.shared import Pt, RGBColor, Cm, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+
+# ===== 配色 =====
+GOLD = RGBColor(0xC9, 0x85, 0x00)
+BLUE = RGBColor(0x39, 0x87, 0xE5)
+DARK = RGBColor(0x1A, 0x1A, 0x19)
+GRAY = RGBColor(0x80, 0x80, 0x80)
+WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+CODE_BG = "F5F5F3"
+
+doc = Document()
+
+# ===== 全局字体(中文宋体/黑体,正文等线) =====
+style = doc.styles['Normal']
+style.font.name = '等线'
+style.font.size = Pt(10.5)
+style.element.rPr.rFonts.set(qn('w:eastAsia'), '等线')
+
+# 页边距
+for section in doc.sections:
+    section.top_margin = Cm(2.5)
+    section.bottom_margin = Cm(2.5)
+    section.left_margin = Cm(2.5)
+    section.right_margin = Cm(2.5)
+
+
+def set_cell_bg(cell, color_hex):
+    """单元格背景色"""
+    tc_pr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement('w:shd')
+    shd.set(qn('w:val'), 'clear')
+    shd.set(qn('w:fill'), color_hex)
+    tc_pr.append(shd)
+
+
+def add_heading(text, level=1, color=GOLD):
+    """带颜色的标题"""
+    h = doc.add_heading('', level=level)
+    run = h.add_run(text)
+    run.font.color.rgb = color
+    run.font.name = '黑体'
+    run.element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+    return h
+
+
+def add_para(text, bold=False, color=None, size=10.5, align=None):
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    run.bold = bold
+    run.font.size = Pt(size)
+    run.font.name = '等线'
+    run.element.rPr.rFonts.set(qn('w:eastAsia'), '等线')
+    if color:
+        run.font.color.rgb = color
+    if align:
+        p.alignment = align
+    return p
+
+
+def add_bullet(text, bold_prefix=None):
+    p = doc.add_paragraph(style='List Bullet')
+    if bold_prefix:
+        r1 = p.add_run(bold_prefix)
+        r1.bold = True
+        r1.font.name = '等线'
+        r1.element.rPr.rFonts.set(qn('w:eastAsia'), '等线')
+    r = p.add_run(text)
+    r.font.name = '等线'
+    r.element.rPr.rFonts.set(qn('w:eastAsia'), '等线')
+    return p
+
+
+def add_number(text):
+    p = doc.add_paragraph(style='List Number')
+    r = p.add_run(text)
+    r.font.name = '等线'
+    r.element.rPr.rFonts.set(qn('w:eastAsia'), '等线')
+    return p
+
+
+def add_code(text):
+    """代码块:灰底等宽"""
+    p = doc.add_paragraph()
+    p.paragraph_format.left_indent = Cm(0.5)
+    p.paragraph_format.space_before = Pt(4)
+    p.paragraph_format.space_after = Pt(4)
+    # 段落背景
+    p_pr = p._p.get_or_add_pPr()
+    shd = OxmlElement('w:shd')
+    shd.set(qn('w:val'), 'clear')
+    shd.set(qn('w:fill'), CODE_BG)
+    p_pr.append(shd)
+    for line in text.split('\n'):
+        run = p.add_run(line + '\n')
+        run.font.name = 'Consolas'
+        run.font.size = Pt(9)
+        run.font.color.rgb = DARK
+
+
+def add_table(headers, rows, col_widths=None):
+    """带表头的表格"""
+    t = doc.add_table(rows=1 + len(rows), cols=len(headers))
+    t.style = 'Light Grid Accent 1'
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    # 表头
+    for i, h in enumerate(headers):
+        cell = t.rows[0].cells[i]
+        cell.text = ''
+        p = cell.paragraphs[0]
+        run = p.add_run(h)
+        run.bold = True
+        run.font.color.rgb = WHITE
+        run.font.size = Pt(10)
+        run.font.name = '黑体'
+        run.element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+        set_cell_bg(cell, 'C98500')
+    # 数据行
+    for r_idx, row in enumerate(rows):
+        for c_idx, val in enumerate(row):
+            cell = t.rows[r_idx + 1].cells[c_idx]
+            cell.text = ''
+            p = cell.paragraphs[0]
+            run = p.add_run(str(val))
+            run.font.size = Pt(9.5)
+            run.font.name = '等线'
+            run.element.rPr.rFonts.set(qn('w:eastAsia'), '等线')
+    return t
+
+
+def add_highlight_box(title, lines):
+    """高亮盒子(用单行表格模拟)"""
+    t = doc.add_table(rows=1, cols=1)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    cell = t.rows[0].cells[0]
+    set_cell_bg(cell, 'FFF4E0')  # 浅金
+    cell.text = ''
+    p = cell.paragraphs[0]
+    run = p.add_run(title)
+    run.bold = True
+    run.font.color.rgb = GOLD
+    run.font.size = Pt(11)
+    run.font.name = '黑体'
+    run.element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+    for line in lines:
+        bp = cell.add_paragraph()
+        r = bp.add_run(line)
+        r.font.size = Pt(10)
+        r.font.name = '等线'
+        r.element.rPr.rFonts.set(qn('w:eastAsia'), '等线')
+    doc.add_paragraph()  # 间距
+
+
+# ============ 封面 ============
+for _ in range(3):
+    doc.add_paragraph()
+add_para('万泰新天地', bold=True, color=GOLD, size=28, align=WD_ALIGN_PARAGRAPH.CENTER)
+add_para('智能运营中台', bold=True, color=DARK, size=28, align=WD_ALIGN_PARAGRAPH.CENTER)
+add_para('技 术 文 档', bold=True, color=GOLD, size=20, align=WD_ALIGN_PARAGRAPH.CENTER)
+add_para('Project WONDERS', color=GRAY, size=14, align=WD_ALIGN_PARAGRAPH.CENTER)
+doc.add_paragraph()
+add_para('让商场从"凭经验"转向"看数据做决策"', bold=True, size=14, align=WD_ALIGN_PARAGRAPH.CENTER)
+add_para('AI 驱动的商场运营决策系统 · RAG 知识库 + Agent + 大模型', color=GRAY, size=12, align=WD_ALIGN_PARAGRAPH.CENTER)
+for _ in range(6):
+    doc.add_paragraph()
+# 封面信息表
+info = [['赛道', 'AI + 软件 · 地产商贸'], ['企业', '广东万泰集团'], ['团队', '佛得首队'],
+        ['成员', '巫焕奇  刘哲润'], ['版本', 'V2.0'], ['日期', '2026 年 7 月']]
+t = doc.add_table(rows=len(info), cols=2)
+t.alignment = WD_TABLE_ALIGNMENT.CENTER
+for i, (k, v) in enumerate(info):
+    c1, c2 = t.rows[i].cells
+    c1.text = ''; r = c1.paragraphs[0].add_run(k); r.bold = True; r.font.size = Pt(11); r.font.color.rgb = GOLD
+    c2.text = ''; r = c2.paragraphs[0].add_run(v); r.font.size = Pt(11)
+doc.add_page_break()
+
+# ============ 目录(Word打开后可更新) ============
+add_heading('目录', level=1)
+add_para('（在 Word 中按 Ctrl+A 全选 → F9 可更新目录字段）', color=GRAY, size=9)
+# 插入TOC字段
+p = doc.add_paragraph()
+run = p.add_run()
+fld = OxmlElement('w:fldChar'); fld.set(qn('w:fldCharType'), 'begin'); run._r.append(fld)
+instr = OxmlElement('w:instrText'); instr.set(qn('xml:space'), 'preserve'); instr.text = 'TOC \\o "1-3" \\h \\z \\u'; run._r.append(instr)
+fld2 = OxmlElement('w:fldChar'); fld2.set(qn('w:fldCharType'), 'separate'); run._r.append(fld2)
+fld3 = OxmlElement('w:fldChar'); fld3.set(qn('w:fldCharType'), 'end'); run._r.append(fld3)
+doc.add_page_break()
+
+# ============ 1. 项目概述 ============
+add_heading('1. 项目概述', 1)
+add_heading('1.1 项目背景', 2)
+add_para('万泰新天地是普宁最大的商业综合体（广东万泰集团·万泰汇购物中心，20 万㎡，2014 年开业，5 层楼，60+ 真实品牌）。在普宁黑客松企业调研中，万泰提出了商场运营的 5 大核心痛点。本项目旨在用 AI 技术解决这些痛点，打造一个"能看懂客流、读懂会员、给得出营销方案"的 AI 运营中台。')
+add_heading('1.2 核心定位', 2)
+add_highlight_box('一句话定位', ['让商场从"凭经验拍脑袋"转向"看数据做决策"。'])
+add_para('系统通过 RAG 知识库 + Agent + 大模型 三项 AI 原生能力，与万泰运营场景深度绑定，覆盖客流画像、会员分层、商铺评估、智能营销、租户管理五大场景，形成"数据→洞察→决策→执行→回算"的完整闭环。')
+add_heading('1.3 核心数据', 2)
+add_table(['指标', '数值'], [
+    ['年度客流量', '3,248 万'], ['真实品牌数', '60 个（沃尔玛/星巴克/喜茶/NIKE/中影国际等）'],
+    ['商铺记录数', '65 条（含跨层主力店）'], ['会员总数', '5,000 人（脱敏）'],
+    ['高价值会员', '67 人'], ['年度营收估算', '¥293.9M'],
+    ['AI 原生能力', '3 项（RAG + Agent + 大模型）'], ['业务页面', '11 个'],
+])
+add_heading('1.4 解决的 5 大痛点', 2)
+for t in ['客流画像缺失——不知来商场的人是谁', '营销割裂——线上线下会员不打通',
+          '数字化获客困难——会员拉新靠传统方式', '数据采集缺失——商铺经营数据采集不到',
+          '管理效率低下——租户管理/合同管理繁琐']:
+    add_number(t)
+
+# ============ 2. 系统架构 ============
+add_heading('2. 系统架构', 1)
+add_heading('2.1 整体架构', 2)
+add_para('系统采用四层架构，自下而上依次为：数据层、算法层、AI 能力层、应用层。')
+add_code('应用层：首页概览 | 客流分析 | 会员洞察 | 商铺评估 | 营销助手 | 全渠道 | 获客 | 采集 | 租户 | 咨询\n    ↑\nAI 能力层：ReAct 营销Agent | 多轮运营对话 | 客流画像 | 催租/获客/咨询 Agent\n    ↑\n算法层：RFM 聚类 | 商铺综合评分 | 客流时空模型 | 天气/节假日效应\n    ↑\n数据层：真实商户(60品牌) | 客流(43800行) | 会员(5000) | 咨询(8000) | RAG语料(94条)')
+add_heading('2.2 技术栈', 2)
+add_table(['层级', '技术', '用途'], [
+    ['前端', 'Streamlit + Plotly', '暗色设计大屏，自定义 CSS 组件，明暗双主题'],
+    ['AI', 'OpenAI 兼容大模型', '讯飞 maas-coding(auto) 首选 + 智多云 5 模型 fallback'],
+    ['检索', 'sentence-transformers', '多语言 MiniLM 向量检索（384 维，离线部署）'],
+    ['算法', 'scikit-learn', 'RFM + K-Means 聚类 + 商铺评分'],
+    ['数据', 'pandas + numpy', 'ETL + 特征工程'],
+    ['脱敏', 'faker + 自研', '手机号/姓名脱敏，满足《个人信息保护法》'],
+    ['测试', 'pytest', '21 个单元测试，保证算法不回归'],
+])
+add_heading('2.3 项目结构', 2)
+add_code('''project_wonders/
+├── app/
+│   ├── main.py            # 入口:品牌侧边栏 + AI状态
+│   ├── config.py          # 配置(楼层/权重/模型参数)
+│   ├── shops_data.py      # 真实商户主数据(60品牌)
+│   ├── data_generator.py  # 数据生成器
+│   ├── processor.py       # ETL + 脱敏
+│   ├── models.py          # RFM + 商铺评分 + 客流模型
+│   ├── llm_client.py      # 大模型客户端(双端点fallback)
+│   ├── rag_corpus.py      # RAG 语料(4类94条)
+│   ├── rag.py             # 向量检索(磁盘缓存)
+│   ├── agent.py           # ReAct Agent + 10个AI函数
+│   ├── viz_theme.py       # 设计系统 + 图表工厂
+│   └── pages/             # 11个业务页面
+├── data/raw/              # 真实商户+客流+会员+咨询数据
+├── tests/                 # 21个单元测试
+└── .streamlit/config.toml # 明暗双主题配置''')
+
+# ============ 3. 数据层 ============
+add_heading('3. 数据层设计', 1)
+add_heading('3.1 数据来源说明', 2)
+add_highlight_box('数据诚信声明', ['商铺清单为现场实勘真实录入（60 品牌），会员/客流/销售为基于商业规律的模拟数据，用于验证算法与闭环。系统已预留万泰 SaaS/OA/POS/IoT 对接接口。'])
+add_heading('3.2 数据集', 2)
+add_table(['数据集', '规模', '关键字段', '说明'], [
+    ['shops_master.csv', '65 行', 'shop_id, name, category, floor, area_sqm, monthly_rent/sales/traffic, collection_rate, contract_start/end, rent_status', '真实商户，含跨层主力店'],
+    ['foot_traffic_2023.csv', '43,800 行', 'timestamp, hour, weekday, is_weekend/holiday, weather, floor, visitor_count', '全年小时级客流'],
+    ['members_2023.csv', '5,000 行', 'member_id, level, register_date, last_visit_date, visit_count, total_spent, preferred_category, register_channel', '已脱敏'],
+    ['consultations_2023.csv', '8,000 行', 'consult_type, channel, content, sentiment, status', '客户咨询记录'],
+])
+add_heading('3.3 数据生成策略', 2)
+add_bullet('时段系数（工作日晚高峰 3.0x，周末下午 2.8x，深夜 0.01）+ 楼层权重（1F=1.0→5F=0.20）+ 天气/节假日效应 + 随机波动 σ=0.20', '客流：')
+add_bullet('面积/租金/销售按业态区间模拟，主力店（沃尔玛 1.2 万㎡/中影 3500㎡）用真实大值', '商铺：')
+add_bullet('RFM 特征按等级分布（黑金 2%/金卡 13%/银卡 25%/普通 60%），20% 高价值会员长期未到店（产生流失风险数据）', '会员：')
+add_bullet('到期日跨 2026-07-11 前后分布，产生真逾期（3 家）+ 真临期（2 家）+ 真未到期（60 家）', '合同：')
+add_heading('3.4 数据脱敏', 2)
+add_para('processor.py 的 mask_sensitive_data 函数对敏感字段脱敏：')
+add_code('''# 手机号脱敏: 13812345678 -> 138****5678
+# 姓名脱敏:   王小明 -> 王**
+# 身份证号:   不存储
+def mask_sensitive_data(df):
+    if 'phone' in df.columns:
+        df['phone'] = df['phone'].str[:3] + '****' + df['phone'].str[-4:]
+    if 'name' in df.columns:
+        df['name'] = df['name'].str[0] + '*' * (df['name'].str.len() - 1)
+    return df''')
+
+# ============ 4. AI 能力层 ============
+add_heading('4. AI 能力层（核心）', 1)
+add_heading('4.1 AI 原生能力总览', 2)
+add_highlight_box('3 项 AI 原生能力', ['1. RAG 知识库：94 条语料，sentence-transformers 向量检索',
+    '2. ReAct Agent：大模型自主调用 4 个工具的多步 Agent',
+    '3. 大模型：讯飞 maas-coding(auto) + 智多云 5 模型 fallback'])
+add_heading('4.2 大模型客户端', 2)
+add_para('llm_client.py 封装 OpenAI 兼容调用，支持双端点自动 fallback：')
+add_code('''# 候选模型(按优先级)
+1. 讯飞 maas-coding `auto` (200k 上下文,首选)
+2. 智多云 glm-5.2 -> deepseek-v4-pro -> kimi-k2.6 (备用)
+
+# 调用链: 首选失败 -> 自动 fallback -> 连续3次失败冷却5分钟
+def chat(messages, temperature=0.7, json_mode=False):
+    for label, base_url, api_key, model in _CANDIDATES:
+        try:
+            return client.chat.completions.create(...)
+        except Exception:
+            _mark_fail(label)  # 计数+冷却
+            continue''')
+add_para('json_mode 兼容处理：讯飞 auto 可能不支持 response_format，客户端先尝试 json_mode，报错则自动去掉重试，配合宽松解析兜底。', bold=False)
+add_heading('4.3 RAG 知识库', 2)
+add_para('语料构成（4 类 94 条）：')
+add_table(['类别', '条数', '内容'], [
+    ['商户清单', '76', '60 个品牌的业态/楼层/主力店/营销定位 + 楼层汇总'],
+    ['万泰企业', '4', '企业简介/5 大痛点/可用数据/合规边界'],
+    ['营销方法论', '8', 'RFM 四类群体策略 + 商铺评分公式 + ROI 方法'],
+    ['业务指标', '6', '客流/销售/转化率/租售比/分群/等级释义'],
+])
+add_para('检索流程：')
+add_number('build_index()：语料向量化（384 维 MiniLM）→ L2 归一化 → pickle 缓存到 data/rag_index/')
+add_number('retrieve(query, k=4)：查询向量化 → 余弦相似度（点积）→ top-k')
+add_number('retrieve_text()：拼接成文本注入大模型 context')
+add_code('''# 离线部署:模型已缓存本地,不联网检查更新
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")''')
+add_heading('4.4 ReAct 营销 Agent（核心创新）', 2)
+add_para('设计动机：', bold=True)
+add_para('传统方案是"硬编码先检索再生成"的单次 LLM 调用，不是真 Agent。本项目将营销 Agent 升级为 ReAct（Reasoning + Acting）多步工具调用——大模型自主决定调哪些工具、调几次，这才是名副其实的 Agent。')
+add_para('工具注册表（Agent 可自主调用 4 个工具）：', bold=True)
+add_table(['工具', '功能', '返回'], [
+    ['query_member_segment', '查 RFM 群体真实统计', '人数/均消费/均到店/等级分布'],
+    ['query_shop_ranking', '查商铺综合评分排行', 'top 商铺（可按业态/楼层筛选）'],
+    ['retrieve_knowledge', 'RAG 检索商场知识库', '相关语料文本'],
+    ['estimate_roi', '估算营销 ROI', '转化率/增收/成本/ROI'],
+])
+add_para('ReAct 循环：', bold=True)
+add_code('''for step in range(6):  # 最多6轮工具调用
+    r = chat(messages, temperature=0.4, json_mode=False)
+    decision = parse_json_response(r["content"])
+
+    if decision["action"] == "tool":
+        result = _call_tool(decision["tool"], decision["args"])
+        messages.append({"role":"user", "content": f"工具结果: {result}"})
+    elif decision["action"] == "final":
+        plan = decision["plan"]  # 最终结构化方案
+        return plan''')
+add_para('实测轨迹（沉睡群体，Agent 自主执行 3 步工具调用）：', bold=True)
+add_number('调 retrieve_knowledge("沉睡会员唤醒营销方法论") → 检索到沉睡策略')
+add_number('调 query_shop_ranking(category="餐饮") → 拿到喜茶/霸王茶姬真实排行')
+add_number('调 estimate_roi(segment="沉睡", count=1250, avg_spent=3200) → ROI=4.0x')
+add_number('基于工具结果生成方案：选品用真实商户，话术含"满300立减60+赠喜茶"，ROI 4.0x')
+add_heading('4.5 其他 AI 能力', 2)
+for t, d in [('多轮运营对话', '注入真实数据 facts + RAG + 对话历史，支持追问上下文'),
+             ('AI 客流人群画像', '基于客流时空规律生成"识人"总结'),
+             ('AI 咨询洞察', '分析咨询数据，生成数据洞察 + 热点问题 + 改进建议'),
+             ('AI 催租话术', '选逾期商户生成合规催缴话术'),
+             ('AI 获客方案', '选渠道生成裂变/券码/地推方案'),
+             ('AI 运营日报', '首页基于全局统计生成 3 条可行动洞察')]:
+    add_bullet(d, t + '：')
+add_heading('4.6 AI 实干度保障', 2)
+add_highlight_box('防"假AI"机制', [
+    'json_mode：要求 JSON 的函数启用 response_format=json_object，减少 fallback',
+    'source 标记：UI 用 _source 字段判断来源（含 "llm" 才标"AI生成"），不误标',
+    'ROI 防造假：system prompt 约束 1-6x，AI 返回越界则用 fallback ROI 替换',
+    '宽松验收：只要含关键结构字段即接受，不因字段不全降级',
+])
+
+# ============ 5. 算法层 ============
+add_heading('5. 算法层', 1)
+add_heading('5.1 RFM 会员分层', 2)
+add_para('RFM 模型：R=最近到店天数（越小越好），F=到店次数（越大越好），M=累计消费（越大越好）。')
+add_number('对 R/F/M 三维特征做 K-Means 聚类（K=4）')
+add_number('按聚类中心综合评分 (-R + F + M) 降序')
+add_number('动态映射标签（不硬编码簇编号）：评分最高→高价值，依次→潜力/新客/沉睡')
+add_para('输出四类群体：高价值（核心利润）/ 潜力（升级空间）/ 新客（需培养）/ 沉睡（需召回）。')
+add_heading('5.2 商铺综合评分', 2)
+add_para('Score = 0.4×销售 + 0.3×客流 + 0.2×租售比 + 0.1×转化率', bold=True)
+add_para('各指标 Min-Max 归一化后加权求和，分数 0-100。租售比 = 月租 / 中位数月租（相对租金贡献）。')
+add_heading('5.3 客流时空模型', 2)
+add_para('build_traffic_function 构建 7（星期）× 24（时段）客流矩阵，用于热力图可视化与峰值识别。')
+add_heading('5.4 天气/节假日效应', 2)
+add_bullet('晴/阴/雨天平均客流对比', 'analyze_weather_impact：')
+add_bullet('工作日/周末/节假日客流倍数', 'analyze_holiday_effect：')
+
+# ============ 6. 痛点解决方案 ============
+add_heading('6. 5 大痛点解决方案', 1)
+pains = [
+    ('6.1 痛点①：客流画像缺失', '客流分析 + 数据采集', [
+        '7×24 时空热力图（红蓝全色谱渐变，3000 断点）定位高峰',
+        '天气/节假日 × 楼层分组对比',
+        'AI 客流人群画像：Agent 基于时空规律生成"识人"总结',
+        '采集覆盖率看板 + 缺失预警 + AI 采集建议']),
+    ('6.2 痛点②：营销割裂', '全渠道营销', [
+        '统一会员 ID 体系（设计中）：贯通小程序/门店 POS/支付/营销',
+        '线上线下触点矩阵 + 桑基流向图',
+        '跨触点会员旅程（线上领券→门店核销→积分回传→RFM更新→精准复购）',
+        '系统对接方案（万泰 SaaS/OA/POS/IoT 接口预留）']),
+    ('6.3 痛点③：数字化获客困难', '数字化获客', [
+        '获客渠道分布 + 渠道质量对比',
+        '数字化获客漏斗（触达→注册→首单→复购）',
+        '渠道 ROI 对比（按行业基准，需 AB 测试校准）',
+        'AI 拉新方案：选渠道→Agent 生成裂变/券码/地推方案 + 执行出口']),
+    ('6.4 痛点④：数据采集缺失', '数据采集', [
+        '采集覆盖率（整体/楼层/业态/主力店）',
+        '缺失预警表（采集率 < 70% 商铺 + 缺失字段）',
+        '数据资产盘点（客流/销售/会员/合同/转化 各类采集状态）',
+        'AI 采集建议：低覆盖商铺→Agent 生成可执行采集方案']),
+    ('6.5 痛点⑤：租户管理繁琐', '租户管理', [
+        '合同到期看板（60 天内到期 + 已逾期）',
+        '收租进度（已收/待收/逾期 + 各楼层收租率）',
+        '租售比预警（>30% 经营压力大，红色预警）',
+        'AI 催租话术：选逾期商户→Agent 生成合规话术 + 执行出口']),
+]
+for title, page, items in pains:
+    add_heading(title, 2)
+    add_para('对应页面：' + page, bold=True)
+    add_para('解决方式：', bold=True)
+    for it in items:
+        add_bullet(it)
+add_heading('6.6 痛点闭环', 2)
+add_para('每个痛点都形成"展示→洞察→决策→执行→回算"闭环，而非止于展示：')
+add_code('数据展示 → AI 洞察 → 结构化方案 → 执行出口(复制/导出/标记已执行) → 录入实际效果 → 回算真实ROI')
+
+# ============ 7. 应用层 ============
+add_heading('7. 应用层（11 个页面）', 1)
+add_table(['页面', '叙事', '核心功能'], [
+    ['首页概览', '一屏看清现状', 'Hero 营收 + KPI + AI 运营日报 + 客流趋势 + Top5 + 多轮运营对话'],
+    ['客流分析', '人从哪来、何时来', '7×24 热力图 + 天气/节假日 × 楼层 + AI 人群画像'],
+    ['会员洞察', '人是谁、怎么分', 'RFM 分层 + 等级分布 + 流失风险预警'],
+    ['商铺评估', '谁在赚钱、谁有盲区', '真实商户排行（三维筛选）+ 业态雷达 + 坪效散点'],
+    ['营销助手', '该怎么动、效果几何', 'ReAct Agent 生成方案 + 思考轨迹 + 执行出口'],
+    ['全渠道营销', '打通营销割裂', '统一 ID + 触点矩阵 + 桑基流向 + 对接方案'],
+    ['数字化获客', '拉新怎么做', '获客漏斗 + 渠道 ROI + AI 拉新方案 + 执行台账'],
+    ['数据采集', '数据盲区在哪', '采集覆盖率 + 缺失预警 + 资产盘点 + AI 建议'],
+    ['租户管理', '收租合同管理', '合同到期 + 收租进度 + 租售比预警 + AI 催租'],
+    ['咨询洞察', '客户在想什么', '咨询分类 + 情感分析 + AI 洞察 + 自动回复'],
+])
+
+# ============ 8. 设计系统 ============
+add_heading('8. 设计系统', 1)
+add_heading('8.1 配色方案（60:30:10）', 2)
+add_table(['角色', '色值', '占比', '用途'], [
+    ['主色', '#0d0d0d', '60%', '背景（深黑）'],
+    ['辅助色', '#c98500', '30%', '标题/数字/强调（万泰金）'],
+    ['点缀色', '#3987e5', '10%', 'AI 标签/链接（科技蓝）'],
+])
+add_heading('8.2 明暗双主题', 2)
+add_bullet('current_palette() 读 st.context.theme.type 动态返回主题 token')
+add_bullet('CSS / 图表 / 卡片颜色全部动态跟随')
+add_bullet('.streamlit/config.toml 配置双主题，用户右上角菜单切换')
+add_heading('8.3 移动端适配', 2)
+add_bullet('响应式布局：KPI 网格桌面 4 列 → 手机 2 列 → 小屏 1 列')
+add_bullet('图表禁用触摸缩放（防误触），touch-action: pan-y 仅允许垂直滚动')
+add_bullet('手机端顶部提示条：提示主要适配电脑端')
+add_heading('8.4 可视化规范', 2)
+add_bullet('分类色固定顺序（颜色跟随实体不跟随排名）')
+add_bullet('标记规范：线 2px、柱 ≤24px、marker ≥8px 带 surface ring')
+add_bullet('网格 1px hairline，端点直接标注')
+add_bullet('热力图 3000 断点 HSL 插值全色谱渐变')
+
+# ============ 9. 部署 ============
+add_heading('9. 部署方案', 1)
+add_heading('9.1 本地运行', 2)
+add_code('''# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 配置大模型密钥(项目根 .env)
+LLM_PRIMARY_BASE_URL=https://maas-coding-api.cn-huabei-1.xf-yun.com/v2
+LLM_PRIMARY_API_KEY=your_key
+LLM_PRIMARY_MODEL=auto
+
+# 3. 生成数据(首次)
+python3 -m app.data_generator
+
+# 4. 启动
+streamlit run app/main.py --server.port 8501''')
+add_heading('9.2 公网部署', 2)
+add_para('采用 cloudflared 内网穿透（无需公网 IP / 备案）：')
+add_code('''# 临时隧道(随机域名)
+~/.local/bin/cloudflared tunnel --url http://localhost:8501
+
+# 命名隧道(固定域名,需 Cloudflare 账号 + 域名)
+~/.local/bin/cloudflared tunnel create wantai
+~/.local/bin/cloudflared tunnel route dns wantai fodeshou.vvvv.ee
+~/.local/bin/cloudflared tunnel run wantai''')
+add_heading('9.3 配置优化', 2)
+add_bullet('字体改系统字体栈（不联网加载 Google Fonts）')
+add_bullet('fileWatcherType=none + runOnSave=false（减少后台开销）')
+add_bullet('公网首屏延迟 0.7~1.1 秒')
+
+# ============ 10. 测试 ============
+add_heading('10. 测试与验证', 1)
+add_heading('10.1 单元测试', 2)
+add_para('21 个 pytest 测试覆盖数据质量 + ETL + RFM 模型 + 商铺评分 + 营销策略：')
+add_code('$ python3 -m pytest tests/ -q\n..................... [100%]\n21 passed in 1.44s')
+add_heading('10.2 页面渲染测试', 2)
+add_para('11 个页面全部通过 Streamlit AppTest 渲染验证，无异常。')
+add_heading('10.3 AI 真调验证', 2)
+add_bullet('大模型客户端：讯飞 auto + 智多云 6 模型全部调通')
+add_bullet('RAG 检索：94 条语料索引建好，语义检索准确')
+add_bullet('ReAct Agent：3 步工具调用，来源标记 llm:讯飞auto/auto/react')
+add_bullet('多轮对话：注入真实数据，问"高价值会员"答"67 人"')
+
+# ============ 11. 合规 ============
+add_heading('11. 合规与安全', 1)
+add_highlight_box('合规边界', [
+    '消费者隐私保护：手机号脱敏（138****5678）、姓名脱敏（王**）、身份证不存储',
+    '商业机密：催租话术遵守合同法，不含威胁/单方解约条款',
+    '广告法：AI 话术不夸大、不绝对化用语',
+    '数据安全：.env 密钥不进 Git，数据文件 .gitignore',
+    'AI 合规：所有 AI 输出含合规提示',
+])
+
+# ============ 12. 总结 ============
+add_heading('12. 总结', 1)
+add_para('本项目针对万泰新天地商场的 5 大运营痛点，构建了一个 AI 驱动的智能运营中台，核心创新点在于：')
+add_number('3 项 AI 原生能力深度绑定场景：RAG 知识库（94 条语料）+ ReAct Agent（4 工具自主调用）+ 大模型（双端点 fallback），满足评审硬门槛')
+add_number('真实数据驱动：60 个真实品牌 + 商业规律模拟数据，AI 回答基于真实数字而非凭空生成')
+add_number('痛点闭环：每个痛点从"展示"到"决策"到"执行"到"回算"，形成完整运营闭环')
+add_number('防假 AI 机制：json_mode + source 标记 + ROI 防造假，确保 AI 实干度')
+add_number('落地可行：数据脱敏 + 合规提示 + 万泰 SaaS/OA/POS/IoT 接口预留')
+add_para('系统已通过 21 个单元测试 + 11 页面渲染验证 + AI 真调验证，公网可访问，具备路演与落地条件。')
+
+doc.add_paragraph()
+add_para('Project WONDERS', bold=True, color=GOLD, size=12, align=WD_ALIGN_PARAGRAPH.CENTER)
+add_para('万泰新天地智能运营中台 · 佛得首队', color=GRAY, size=10, align=WD_ALIGN_PARAGRAPH.CENTER)
+add_para('巫焕奇  刘哲润  普宁黑客松 2026', color=GRAY, size=10, align=WD_ALIGN_PARAGRAPH.CENTER)
+
+doc.save('/home/qq/project_wonders/docs/万泰智能运营中台技术文档.docx')
+print('✅ docx 生成成功')
